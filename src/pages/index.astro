@@ -1,50 +1,113 @@
 ---
-import BaseHead from '../components/BaseHead.astro';
-import Header from '../components/Header.astro';
-import Footer from '../components/Footer.astro';
-import { SITE_TITLE, SITE_DESCRIPTION } from '../consts';
----
+import fetch from "node-fetch";
+import { JSDOM } from "jsdom";
+// Import the getAllArticles function from the newsArchive.js file
+import getAllArticles from "../lib/newsArchive.js";
 
-<!doctype html>
-<html lang="en">
-	<head>
-		<BaseHead title={SITE_TITLE} description={SITE_DESCRIPTION} />
-	</head>
-	<body>
-		<Header />
-		<main>
-			<h1>🧑‍🚀 Hello, Astronaut!</h1>
-			<p>
-				Welcome to the official <a href="https://astro.build/">Astro</a> blog starter template. This
-				template serves as a lightweight, minimally-styled starting point for anyone looking to build
-				a personal website, blog, or portfolio with Astro.
-			</p>
-			<p>
-				This template comes with a few integrations already configured in your
-				<code>astro.config.mjs</code> file. You can customize your setup with
-				<a href="https://astro.build/integrations">Astro Integrations</a> to add tools like Tailwind,
-				React, or Vue to your project.
-			</p>
-			<p>Here are a few ideas on how to get started with the template:</p>
-			<ul>
-				<li>Edit this page in <code>src/pages/index.astro</code></li>
-				<li>Edit the site header items in <code>src/components/Header.astro</code></li>
-				<li>Add your name to the footer in <code>src/components/Footer.astro</code></li>
-				<li>Check out the included blog posts in <code>src/content/blog/</code></li>
-				<li>Customize the blog post page layout in <code>src/layouts/BlogPost.astro</code></li>
-			</ul>
-			<p>
-				Have fun! If you get stuck, remember to <a href="https://docs.astro.build/"
-					>read the docs
-				</a> or <a href="https://astro.build/chat">join us on Discord</a> to ask questions.
-			</p>
-			<p>
-				Looking for a blog template with a bit more personality? Check out <a
-					href="https://github.com/Charca/astro-blog-template"
-					>astro-blog-template
-				</a> by <a href="https://twitter.com/Charca">Maxi Ferreira</a>.
-			</p>
-		</main>
-		<Footer />
-	</body>
+// Initialize articles variable and error flag
+let articles;
+let errorOccurred = false;
+
+try {
+  // Try to fetch all articles
+  articles = await getAllArticles();
+} catch (error) {
+  // If an error occurs, log it and set the error flag
+  console.error("Failed to get articles:", error);
+  articles = [];
+  errorOccurred = true;
+}
+async function fetchOGData(url) {
+  try {
+    const response = await fetch(url);
+    const html = await response.text();
+    const dom = new JSDOM(html);
+    const doc = dom.window.document;
+    let ogTitle =
+      doc.querySelector('meta[property="og:title"]')?.content || url;
+    const ogImage = doc.querySelector('meta[property="og:image"]')?.content;
+    return { ogTitle, ogImage, url };
+  } catch (error) {
+    console.error("Error fetching OG data:", error);
+    return { ogTitle: "No title", ogImage: "No image", url };
+  }
+}
+
+async function articlesWithOGData(articles) {
+  return await Promise.all(articles.map(fetchOGData));
+}
+let allArticles = await articlesWithOGData(articles);
+---
+<html>
+  <body>
+    <h1>News Articles</h1>
+    {
+      // If an error occurred, display an error message
+      // Otherwise, display the list of articles
+      errorOccurred ? (
+        <p>Sorry, we're unable to fetch articles at the moment.</p>
+      ) : (
+        <ul>
+          {allArticles.map((article) => (
+            <li>
+              <article>
+                <a href={article.url}>
+                  <h2>{article?.ogTitle}</h2>
+                </a>
+                <img src={article?.ogImage} alt="" />
+              </article>
+            </li>
+          ))}
+        </ul>
+      )
+    }
+  </body>
 </html>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 20px;
+  }
+  
+  h1 {
+    text-align: center;
+  }
+  
+  ul {
+    list-style-type: none;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    grid-gap: 20px;
+  }
+  
+  article {
+    background-color: #f4f4f4;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease;
+  }
+  
+  article:hover {
+    transform: translateY(-5px);
+  }
+  
+  article a {
+    text-decoration: none;
+    color: #333;
+  }
+  
+  article h2 {
+    font-size: 18px;
+    margin-top: 0;
+  }
+  
+  article img {
+    width: 100%;
+    height: auto;
+    border-radius: 4px;
+    margin-top: 10px;
+  }
+</style>
